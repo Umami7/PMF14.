@@ -11,6 +11,7 @@ type CellType = 'round' | 'prismatic'
 type GridStyle = 'grid' | 'honeycomb'
 type ExtrusionDir = 'z' | 'x' | 'y'
 type VisMode = 'solid' | 'wire' | 'skeleton'
+type CellRotation = 0 | 90
 
 interface ShapeParams {
   type: ShapeType
@@ -56,6 +57,7 @@ interface PackingResult {
   sp: ShapeParams
   cell: CellParams
   gridOffset: GridOffset3D
+  cellRotation: CellRotation
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -97,6 +99,61 @@ const DIR_LABELS_SHORT: Record<ExtrusionDir, string> = {
 const GS_LABELS: Record<GridStyle, string> = {
   grid: 'Grid',
   honeycomb: '⬡ HComb',
+}
+
+const ROT_LABELS: Record<CellRotation, string> = {
+  0: '0\u00b0',
+  90: '90\u00b0',
+}
+
+function getPrismaticCross(cell: PrismaticCell, cellRotation: CellRotation) {
+  const width = cellRotation === 0 ? cell.width : cell.depth
+  const depth = cellRotation === 0 ? cell.depth : cell.width
+  return {
+    width,
+    depth,
+    halfWidth: width / 2,
+    halfDepth: depth / 2,
+  }
+}
+
+function getWorldStepSizes(
+  cell: CellParams,
+  extrusionDir: ExtrusionDir,
+  cellRotation: CellRotation = 0,
+) {
+  const gap = cell.type === 'round' ? CELL_GAP_ROUND : CELL_GAP_PRISM
+  let fpA: number
+  let fpB: number
+  let longH: number
+
+  if (cell.type === 'round') {
+    fpA = fpB = cell.diam / 2
+    longH = cell.height / 2
+  } else {
+    const cross = getPrismaticCross(cell, cellRotation)
+    fpA = cross.halfWidth
+    fpB = cross.halfDepth
+    longH = cell.height / 2
+  }
+
+  const stepFpA = fpA * 2 + gap
+  const stepFpB = fpB * 2 + gap
+  const stepLong = longH * 2 + LAYER_GAP
+
+  if (extrusionDir === 'z') {
+    return { stepX: stepFpA, stepY: stepLong, stepZ: stepFpB }
+  }
+  if (extrusionDir === 'x') {
+    return { stepX: stepLong, stepY: stepFpA, stepZ: stepFpB }
+  }
+  return { stepX: stepFpA, stepY: stepFpB, stepZ: stepLong }
+}
+
+function rotationSuffix(result: PackingResult): string {
+  return result.cell.type === 'prismatic'
+    ? ` | Rotation ${ROT_LABELS[result.cellRotation]}`
+    : ''
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -200,6 +257,7 @@ function pack3D(
   extDir: ExtrusionDir,
   gridStyle: GridStyle,
   offset: GridOffset3D,
+  cellRotation: CellRotation = 0,
 ): Point3D[] {
   const { l, h, w } = sp
   const poly = getShapePolygon(sp)   // always original l×w polygon, never swapped
@@ -218,8 +276,9 @@ function pack3D(
     fpA = fpB = cell.diam / 2
     longH = cell.height / 2
   } else {
-    fpA = cell.width / 2
-    fpB = cell.depth / 2
+    const cross = getPrismaticCross(cell, cellRotation)
+    fpA = cross.halfWidth
+    fpB = cross.halfDepth
     longH = cell.height / 2
   }
 
@@ -266,15 +325,15 @@ function pack3D(
     const hcStepZ = stepX * (Math.sqrt(3) / 2)
     const oX = ((offset.ox % stepX) + stepX) % stepX
     const oZ = gridStyle === 'honeycomb'
-      ? ((offset.oy % hcStepZ) + hcStepZ) % hcStepZ
-      : ((offset.oy % stepZ)   + stepZ)   % stepZ
-    const oY = ((offset.oz % stepY) + stepY) % stepY
+      ? ((offset.oz % hcStepZ) + hcStepZ) % hcStepZ
+      : ((offset.oz % stepZ)   + stepZ)   % stepZ
+    const oY = ((offset.oy % stepY) + stepY) % stepY
 
     for (let cy = longH + oY - stepY; cy <= h + stepY; cy += stepY) {
       if (cy - longH < 0 || cy + longH > h) continue
       if (gridStyle === 'honeycomb') {
         let row = 0
-        for (let cz = fpA + oZ - hcStepZ; cz <= w + hcStepZ; cz += hcStepZ, row++) {
+        for (let cz = fpB + oZ - hcStepZ; cz <= w + hcStepZ; cz += hcStepZ, row++) {
           const hcOff = row % 2 === 0 ? 0 : stepX / 2
           for (let cx = fpA + oX - stepX + hcOff; cx <= l + stepX; cx += stepX) {
             if (xzOk(cx, cz, fpA, fpA)) positions.push({ x: cx, y: cy, z: cz })
@@ -293,15 +352,16 @@ function pack3D(
     // long=X. Cross-section is a circle (radius fpA) in the Y-Z plane.
     // Honeycomb in Y-Z: rows along Z, offset every other row in Z by stepZ/2,
     // row pitch in Y = stepZ * √3/2  (so diagonal wall-to-wall gap = cell gap).
-    const hzXZ = fpA
+    const hy = fpA
+    const hzXZ = fpB
     const hxXZ = longH
     const stepX = stepLong
-    const stepZ = stepFpA                         // Z centre-to-centre
+    const stepY = stepFpA                         // Y centre-to-centre
+    const stepZ = stepFpB                         // Z centre-to-centre
     const hcStepY = stepZ * (Math.sqrt(3) / 2)   // honeycomb row pitch in Y
-    const stepY = stepFpB                         // grid row pitch in Y
 
-    const oX = ((offset.oz % stepX) + stepX) % stepX
-    const oZ = ((offset.ox % stepZ) + stepZ) % stepZ
+    const oX = ((offset.ox % stepX) + stepX) % stepX
+    const oZ = ((offset.oz % stepZ) + stepZ) % stepZ
     const oY_hc   = ((offset.oy % hcStepY) + hcStepY) % hcStepY
     const oY_grid = ((offset.oy % stepY)   + stepY)   % stepY
 
@@ -309,16 +369,16 @@ function pack3D(
       if (cx - longH < 0 || cx + longH > l) continue
       if (gridStyle === 'honeycomb') {
         let row = 0
-        for (let cy = fpA + oY_hc - hcStepY; cy <= h + hcStepY; cy += hcStepY, row++) {
-          if (cy - fpA < 0 || cy + fpA > h) continue
+        for (let cy = hy + oY_hc - hcStepY; cy <= h + hcStepY; cy += hcStepY, row++) {
+          if (cy - hy < 0 || cy + hy > h) continue
           const hcOff = row % 2 === 0 ? 0 : stepZ / 2
-          for (let cz = fpA + oZ - stepZ + hcOff; cz <= w + stepZ; cz += stepZ) {
+          for (let cz = hzXZ + oZ - stepZ + hcOff; cz <= w + stepZ; cz += stepZ) {
             if (rectFootprintOk(cx, cz, hxXZ, hzXZ, poly)) positions.push({ x: cx, y: cy, z: cz })
           }
         }
       } else {
-        for (let cy = fpB + oY_grid - stepY; cy <= h + stepY; cy += stepY) {
-          if (cy - fpB < 0 || cy + fpB > h) continue
+        for (let cy = hy + oY_grid - stepY; cy <= h + stepY; cy += stepY) {
+          if (cy - hy < 0 || cy + hy > h) continue
           for (let cz = hzXZ + oZ - stepZ; cz <= w + stepZ; cz += stepZ) {
             if (rectFootprintOk(cx, cz, hxXZ, hzXZ, poly)) positions.push({ x: cx, y: cy, z: cz })
           }
@@ -332,6 +392,7 @@ function pack3D(
     // row pitch in Y = stepX * √3/2.
     const hxXZ = fpA
     const hzXZ = longH
+    const hy = fpB
     const stepZ = stepLong
     const stepX = stepFpA                         // X centre-to-centre
     const hcStepY = stepX * (Math.sqrt(3) / 2)   // honeycomb row pitch in Y
@@ -346,16 +407,16 @@ function pack3D(
       if (cz - longH < 0 || cz + longH > w) continue
       if (gridStyle === 'honeycomb') {
         let row = 0
-        for (let cy = fpA + oY_hc - hcStepY; cy <= h + hcStepY; cy += hcStepY, row++) {
-          if (cy - fpA < 0 || cy + fpA > h) continue
+        for (let cy = hy + oY_hc - hcStepY; cy <= h + hcStepY; cy += hcStepY, row++) {
+          if (cy - hy < 0 || cy + hy > h) continue
           const hcOff = row % 2 === 0 ? 0 : stepX / 2
           for (let cx = fpA + oX - stepX + hcOff; cx <= l + stepX; cx += stepX) {
             if (rectFootprintOk(cx, cz, hxXZ, hzXZ, poly)) positions.push({ x: cx, y: cy, z: cz })
           }
         }
       } else {
-        for (let cy = fpB + oY_grid - stepY; cy <= h + stepY; cy += stepY) {
-          if (cy - fpB < 0 || cy + fpB > h) continue
+        for (let cy = hy + oY_grid - stepY; cy <= h + stepY; cy += stepY) {
+          if (cy - hy < 0 || cy + hy > h) continue
           for (let cx = hxXZ + oX - stepX; cx <= l + stepX; cx += stepX) {
             if (rectFootprintOk(cx, cz, hxXZ, hzXZ, poly)) positions.push({ x: cx, y: cy, z: cz })
           }
@@ -379,21 +440,19 @@ function runAllCombinations(
     cell.type === 'round'
       ? gridStyle === 'honeycomb' ? ['honeycomb'] : ['grid', 'honeycomb']
       : ['grid']
-
-  const gap = cell.type === 'round' ? CELL_GAP_ROUND : CELL_GAP_PRISM
-  const stepA = (cell.type === 'round' ? cell.diam : cell.width)  + gap
-  const stepB = (cell.type === 'round' ? cell.diam : (cell as PrismaticCell).depth) + gap
-  const stepL = cell.height + LAYER_GAP
+  const cellRotations: CellRotation[] = cell.type === 'prismatic' ? [0, 90] : [0]
 
   const isManual = gridOffset.ox !== 0 || gridOffset.oy !== 0 || gridOffset.oz !== 0
 
   for (const extDir of extrusionDirs) {
-    for (const gs of gridStyles) {
+    for (const cellRotation of cellRotations) {
+      const { stepX, stepY, stepZ } = getWorldStepSizes(cell, extDir, cellRotation)
+      for (const gs of gridStyles) {
       let bestPositions: Point3D[] = []
       let bestOffset: GridOffset3D = { ...gridOffset }
 
       if (isManual) {
-        bestPositions = pack3D(sp, cell, extDir, gs, gridOffset)
+        bestPositions = pack3D(sp, cell, extDir, gs, gridOffset, cellRotation)
         bestOffset = { ...gridOffset }
       } else {
         // Auto-sweep 6³ = 216 offset combinations to find the best placement
@@ -402,11 +461,11 @@ function runAllCombinations(
           for (let sj = 0; sj < S; sj++) {
             for (let sk = 0; sk < S; sk++) {
               const off: GridOffset3D = {
-                ox: (si / S) * stepA,
-                oy: (sj / S) * stepB,
-                oz: (sk / S) * stepL,
+                ox: (si / S) * stepX,
+                oy: (sj / S) * stepY,
+                oz: (sk / S) * stepZ,
               }
-              const pos = pack3D(sp, cell, extDir, gs, off)
+              const pos = pack3D(sp, cell, extDir, gs, off, cellRotation)
               if (pos.length > bestPositions.length) {
                 bestPositions = pos
                 bestOffset = off
@@ -427,7 +486,9 @@ function runAllCombinations(
         sp: { ...sp },
         cell: { ...cell } as CellParams,
         gridOffset: bestOffset,
+        cellRotation,
       })
+      }
     }
   }
 
@@ -504,6 +565,7 @@ animate()
 // ─────────────────────────────────────────────────────────────────────────────
 
 let visMode: VisMode = 'solid'
+let explodeMode = false
 let currentResult: PackingResult | null = null
 let sceneObjects: THREE.Object3D[] = []
 let bboxObject: THREE.Object3D | null = null
@@ -574,31 +636,9 @@ function buildShapeMesh(result: PackingResult): THREE.Group {
 // Shows the repeating cell pattern as thin lines so the user can see what
 // the offset sliders are doing.
 function buildGridLines(result: PackingResult): THREE.Object3D {
-  const { cell, gridOffset, extrusionDir, sp } = result
+  const { cell, gridOffset, extrusionDir, sp, cellRotation } = result
   const { l, w, h } = sp
-  const gap = cell.type === 'round' ? CELL_GAP_ROUND : CELL_GAP_PRISM
-
-  // Step sizes per world axis — depend on extrusion direction
-  let stepX: number, stepY: number, stepZ: number
-  if (cell.type === 'round') {
-    const d = cell.diam
-    if (extrusionDir === 'z') {
-      stepX = d + gap; stepZ = d + gap; stepY = cell.height + LAYER_GAP
-    } else if (extrusionDir === 'x') {
-      stepY = d + gap; stepZ = d + gap; stepX = cell.height + LAYER_GAP
-    } else {
-      stepX = d + gap; stepY = d + gap; stepZ = cell.height + LAYER_GAP
-    }
-  } else {
-    const pc = cell as PrismaticCell
-    if (extrusionDir === 'z') {
-      stepX = pc.width + gap; stepZ = pc.depth + gap; stepY = pc.height + LAYER_GAP
-    } else if (extrusionDir === 'x') {
-      stepY = pc.width + gap; stepZ = pc.depth + gap; stepX = pc.height + LAYER_GAP
-    } else {
-      stepX = pc.width + gap; stepY = pc.depth + gap; stepZ = pc.height + LAYER_GAP
-    }
-  }
+  const { stepX, stepY, stepZ } = getWorldStepSizes(cell, extrusionDir, cellRotation)
 
   const ox = ((gridOffset.ox % stepX) + stepX) % stepX
   const oy = ((gridOffset.oy % stepY) + stepY) % stepY
@@ -1089,6 +1129,9 @@ function mergeBufferGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeomet
   return merged
 }
 
+void collectLayers
+void mergeBufferGeometries
+
 /** Toggle wrap on/off and refresh its appearance. */
 function updateWrap() {
   if (wrapMesh) { scene.remove(wrapMesh); wrapMesh = null }
@@ -1109,26 +1152,23 @@ function updateWrap() {
 
 const CELL_COLORS = [0x0077cc, 0x00aa77, 0xdd6600, 0x9933cc]
 
-function makeCellGeo(cell: CellParams, extDir: ExtrusionDir): THREE.BufferGeometry {
+function makeCellGeo(cell: CellParams, extDir: ExtrusionDir, cellRotation: CellRotation = 0): THREE.BufferGeometry {
   // Geometry is always built with the long axis along Y (Three.js CylinderGeometry default).
   // Rotation to the correct world axis is applied via instanceQuat below.
   const h = cell.height
   if (cell.type === 'round') {
     return new THREE.CylinderGeometry(cell.diam / 2, cell.diam / 2, h, 16)
   }
-  // prismatic: width × depth cross-section, height is long axis
-  // extDir=z → stands along Y: X=width, Z=depth
-  // extDir=x → lies along X (rotated later): X=width, Z=depth
-  // extDir=y → lies along Z (rotated later): X=width, Z=depth
+  const cross = getPrismaticCross(cell, cellRotation)
   void extDir
-  return new THREE.BoxGeometry(cell.width, h, cell.depth)
+  return new THREE.BoxGeometry(cross.width, h, cross.depth)
 }
 
 function visualizeResult(result: PackingResult, keepCamera = false) {
   clearScene()
   currentResult = result
 
-  const { cell, extrusionDir, sp, positions, gridOffset } = result
+  const { cell, extrusionDir, sp, positions, gridOffset, cellRotation } = result
   const { l, w, h } = sp
 
   updateBoundingBox(sp)
@@ -1137,7 +1177,7 @@ function visualizeResult(result: PackingResult, keepCamera = false) {
   addObj(buildDimensionLines(result.sp))
 
   // Cell geometry: long axis along Y, rotated per extrusionDir
-  const cellGeo = makeCellGeo(cell, extrusionDir)
+  const cellGeo = makeCellGeo(cell, extrusionDir, cellRotation)
 
   // Rotation quaternion: pack3D returns world-space positions with cell long axis along:
   //   extDir=z → world Y  (no rotation needed)
@@ -1166,6 +1206,9 @@ function visualizeResult(result: PackingResult, keepCamera = false) {
   }
 
   const cellColor = new THREE.Color()
+  const explosionAmount = explodeMode
+    ? parseFloat((document.getElementById('explodeAmount') as HTMLInputElement)?.value ?? '70') || 0
+    : 0
 
   // Build one merged BufferGeometry with all cell vertices baked into world coordinates.
   const srcGeo = visMode === 'skeleton' ? new THREE.EdgesGeometry(cellGeo) : cellGeo
@@ -1190,6 +1233,12 @@ function visualizeResult(result: PackingResult, keepCamera = false) {
                    : extrusionDir === 'x' ? Math.round(p.x * 10) / 10
                    : Math.round(p.z * 10) / 10
     const layerIdx = stackCoords.get(stackKey) ?? 0
+    if (explosionAmount > 0) {
+      const layerShift = layerIdx * explosionAmount
+      if (extrusionDir === 'z') worldPos.y += layerShift
+      else if (extrusionDir === 'x') worldPos.x += layerShift
+      else worldPos.z -= layerShift
+    }
     cellColor.set(CELL_COLORS[layerIdx % CELL_COLORS.length])
 
     const baseVert = vOffset / 3
@@ -1274,20 +1323,28 @@ function updateCountUI(total: number, layers: number, result: PackingResult) {
   el('ov_grid').textContent   = String(perLayer)
   el('ov_layers').textContent = String(layers)
   el('ov_orient').textContent =
-    `${DIR_LABELS[result.extrusionDir]} · ${GS_LABELS[result.gridStyle]}`
+    `${DIR_LABELS[result.extrusionDir]} · ${GS_LABELS[result.gridStyle]}${rotationSuffix(result)}`
 
   // Header above the result list (shows the active result, not necessarily the best)
   el('bestCount').textContent = `${total} Zellen`
   el('bestDesc').textContent =
-    `${perLayer} × ${layers} Ebenen · ${result.extrusionDir.toUpperCase()}-Richtung`
+    `${perLayer} × ${layers} Ebenen · ${result.extrusionDir.toUpperCase()}-Richtung${rotationSuffix(result)}`
+  el('bestDims').textContent =
+    `Packmaße: ${result.sp.l} × ${result.sp.w} × ${result.sp.h} mm`
+  el('bestRaster').textContent =
+    `Raster: ${GS_LABELS[result.gridStyle]} · Versatz X/Y/Z ${result.gridOffset.ox.toFixed(1)} / ${result.gridOffset.oy.toFixed(1)} / ${result.gridOffset.oz.toFixed(1)} mm`
+  el('resultExplain').textContent =
+    result.cell.type === 'prismatic'
+      ? 'Prismatische Zellen werden automatisch in 0° und 90° verglichen; das beste Raster wird angezeigt.'
+      : 'Rundzellen werden je nach Raster als Grid oder Honeycomb verglichen.'
 
   // Update the active row in the list in-place (no full re-render)
   const activeRow = el('resultList').querySelector('.result-row.active')
   if (activeRow) {
     const countEl = activeRow.querySelector('.count')
-    const subEl   = activeRow.querySelector('span[style]')
+    const subEl   = activeRow.querySelector('.desc')
     if (countEl) countEl.textContent = String(total)
-    if (subEl)   subEl.textContent   = `${perLayer}×${layers}`
+    if (subEl)   subEl.textContent   = `${DIR_LABELS_SHORT[result.extrusionDir]} · ${GS_LABELS[result.gridStyle]}${rotationSuffix(result)} · ${perLayer}×${layers}`
   }
 }
 
@@ -1309,6 +1366,15 @@ function selVal(id: string): string {
 
 function show(id: string) { el(id).style.display = '' }
 function hide(id: string) { el(id).style.display = 'none' }
+
+function activateTab(tabName: string) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', (btn as HTMLElement).dataset.tab === tabName)
+  })
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.toggle('active', (panel as HTMLElement).dataset.tabPanel === tabName)
+  })
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UI STATE
@@ -1393,7 +1459,7 @@ function renderResultList(results: PackingResult[], activeIdx = 0) {
       <div>
         <span class="count">${r.total}</span>
       </div>
-      <div class="desc">${DIR_LABELS_SHORT[r.extrusionDir]} · ${GS_LABELS[r.gridStyle]}</div>
+      <div class="desc">${DIR_LABELS_SHORT[r.extrusionDir]} · ${GS_LABELS[r.gridStyle]}${rotationSuffix(r)}</div>
     </div>
   `).join('')
 
@@ -1407,6 +1473,7 @@ function renderResultList(results: PackingResult[], activeIdx = 0) {
 
 function showResults(results: PackingResult[]) {
   show('resultsPanel')
+  activateTab('ergebnisse')
   activeResultIdx = 0
   renderResultList(results, 0)
   if (results.length > 0) selectResult(0)
@@ -1425,11 +1492,7 @@ function selectResult(idx: number) {
 }
 
 function syncOffsetSliders(r: PackingResult) {
-  const c = r.cell
-  const gap = c.type === 'round' ? CELL_GAP_ROUND : CELL_GAP_PRISM
-  const stepX = (c.type === 'round' ? c.diam : c.width)  + gap
-  const stepY = (c.type === 'round' ? c.diam : (c as PrismaticCell).depth) + gap
-  const stepZ = c.height + LAYER_GAP
+  const { stepX, stepY, stepZ } = getWorldStepSizes(r.cell, r.extrusionDir, r.cellRotation)
   ;(el('gridOffX') as HTMLInputElement).max   = String(stepX)
   ;(el('gridOffY') as HTMLInputElement).max   = String(stepY)
   ;(el('gridOffZ') as HTMLInputElement).max   = String(stepZ)
@@ -1448,7 +1511,7 @@ function liveRefresh() {
   getPackingParams()
 
   const ref = allResults[activeResultIdx]
-  const newPositions = pack3D(ref.sp, ref.cell, ref.extrusionDir, ref.gridStyle, gridOffset)
+  const newPositions = pack3D(ref.sp, ref.cell, ref.extrusionDir, ref.gridStyle, gridOffset, ref.cellRotation)
 
   // Update only the active entry in-place
   allResults[activeResultIdx] = {
@@ -1511,6 +1574,14 @@ function setVis(mode: VisMode) {
   if (currentResult) visualizeResult(currentResult, true)
 }
 
+function setExplode(enabled: boolean) {
+  explodeMode = enabled
+  el('btnPack').classList.toggle('active', !enabled)
+  el('btnExplode').classList.toggle('active', enabled)
+  el('explodeControl').style.display = enabled ? '' : 'none'
+  if (currentResult) visualizeResult(currentResult, true)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GRID OFFSET
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1544,6 +1615,15 @@ document.getElementById('runBtn')!.addEventListener('click', runOptimizer)
 document.getElementById('btnSolid')!.addEventListener('click', () => setVis('solid'))
 document.getElementById('btnWire')!.addEventListener('click', () => setVis('wire'))
 document.getElementById('btnSkeleton')!.addEventListener('click', () => setVis('skeleton'))
+document.getElementById('btnPack')!.addEventListener('click', () => setExplode(false))
+document.getElementById('btnExplode')!.addEventListener('click', () => setExplode(true))
+document.getElementById('explodeAmount')!.addEventListener('input', () => {
+  if (explodeMode && currentResult) visualizeResult(currentResult, true)
+})
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateTab((btn as HTMLElement).dataset.tab ?? 'parameter'))
+})
 
 document.getElementById('gridOffX')!.addEventListener('input', onOffsetChange)
 document.getElementById('gridOffY')!.addEventListener('input', onOffsetChange)
@@ -1575,3 +1655,6 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
 
 onShapeChange()
 setPreset('18650')
+activateTab('parameter')
+setExplode(false)
+requestAnimationFrame(() => runOptimizer())
