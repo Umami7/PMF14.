@@ -8,171 +8,199 @@
 <body>
 
 <header>
-  <h1>⬡ BATTERY PACK OPTIMIZER</h1>
+  <h1>BATTERY PACK OPTIMIZER</h1>
   <span>3D Zellverteilung · EU Battery Regulation 2023/1542</span>
-  <img class="tu-logo" src="/tu-berlin-logo.svg" alt="Technische Universitaet Berlin" width="180" height="42" />
+  <strong class="tu-logo-text">TU Berlin</strong>
 </header>
 
 <div class="main">
 
-  <!-- ── LEFT PANEL ─────────────────────────────────────── -->
   <div class="sidebar">
+    <nav class="tab-bar" aria-label="Konfigurationsbereiche">
+      <button class="tab-btn active" data-tab="parameter" type="button">Parameter</button>
+      <button class="tab-btn" data-tab="zellen" type="button">Zellen</button>
+      <button class="tab-btn" data-tab="ansicht" type="button">Ansicht</button>
+      <button class="tab-btn" data-tab="ergebnisse" type="button">Ergebnisse</button>
+    </nav>
+
     <div class="sidebar-inner">
 
-      <!-- SHAPE -->
-      <div class="card">
-        <div class="card-title">① Bauraum-Form</div>
-        <label>Grundform</label>
-        <select id="shapeType">
-          <option value="rectangle">Rechteck</option>
-          <option value="l_shape">L-Form</option>
-          <option value="u_shape">U-Form</option>
-          <option value="t_shape">T-Form</option>
-          <option value="triangle">Dreieck (rechtwinklig)</option>
-          <option value="trapeze">Trapez</option>
-        </select>
-        <div class="shape-hint" id="shapeHint">Aussenmasse des rechteckigen Bauraums.</div>
-        <div id="shapeMirror" style="display:none">
-          <label>Ausrichtung</label>
-          <select id="shapeMirrorSelect">
-            <option value="right">L nach rechts</option>
-            <option value="left">L nach links</option>
+      <section class="tab-panel active" data-tab-panel="parameter">
+        <div class="card">
+          <div class="card-title">01 Bauraum-Form</div>
+          <label>Grundform</label>
+          <select id="shapeType">
+            <option value="rectangle">Rechteck</option>
+            <option value="l_shape">L-Form</option>
+            <option value="u_shape">U-Form</option>
+            <option value="t_shape">T-Form</option>
+            <option value="triangle">Dreieck (rechtwinklig)</option>
+            <option value="trapeze">Trapez</option>
           </select>
-        </div>
-
-        <div id="shapeDims">
-          <div class="row2">
-            <div><label id="label_dim_l">Laenge mm</label><input type="number" id="dim_l" value="400" min="10" /></div>
-            <div><label id="label_dim_w">Breite mm</label><input type="number" id="dim_w" value="300" min="10" /></div>
+          <div class="shape-hint" id="shapeHint">Außenmaße des rechteckigen Bauraums.</div>
+          <div id="shapeMirror" style="display:none">
+            <label>Ausrichtung</label>
+            <select id="shapeMirrorSelect">
+              <option value="right">L nach rechts</option>
+              <option value="left">L nach links</option>
+            </select>
           </div>
-          <div><label id="label_dim_h">Hoehe mm</label><input type="number" id="dim_h" value="200" min="10" /></div>
-        </div>
 
-        <div id="extra_cut" style="display:none">
-          <div class="row2">
-            <div><label id="label_cut_l">Ausschnitt Laenge mm</label><input type="number" id="dim_cut_l" value="150" min="1" /></div>
-            <div><label id="label_cut_w">Ausschnitt Breite mm</label><input type="number" id="dim_cut_w" value="120" min="1" /></div>
+          <div id="shapeDims">
+            <div class="row2">
+              <div><label id="label_dim_l">Länge mm</label><input type="number" id="dim_l" value="400" min="10" /></div>
+              <div><label id="label_dim_w">Breite mm</label><input type="number" id="dim_w" value="300" min="10" /></div>
+            </div>
+            <div><label id="label_dim_h">Höhe mm</label><input type="number" id="dim_h" value="200" min="10" /></div>
           </div>
-        </div>
-        <div id="extra_t" style="display:none">
-          <div class="row2">
-            <div><label id="label_stem_w">Stab-Breite mm</label><input type="number" id="dim_stem_w" value="80" min="1" /></div>
-            <div><label id="label_bar_h">Stab-Laenge mm</label><input type="number" id="dim_bar_h" value="240" min="1" /></div>
+
+          <div id="extra_cut" style="display:none">
+            <div class="row2">
+              <div><label id="label_cut_l">Ausschnitt Länge mm</label><input type="number" id="dim_cut_l" value="150" min="1" /></div>
+              <div><label id="label_cut_w">Ausschnitt Breite mm</label><input type="number" id="dim_cut_w" value="120" min="1" /></div>
+            </div>
           </div>
-        </div>
-        <div id="extra_trap" style="display:none">
-          <div><label id="label_top_mm">Obere Laenge mm</label><input type="number" id="dim_top_mm" value="200" min="1" /></div>
-        </div>
-      </div>
-
-      <!-- CELL -->
-      <div class="card">
-        <div class="card-title">② Zelltyp</div>
-        <div class="cell-preset">
-          <button class="preset-btn" data-preset="18650">18650</button>
-          <button class="preset-btn" data-preset="21700">21700</button>
-          <button class="preset-btn" data-preset="BYD50">BYD 50Ah</button>
-          <button class="preset-btn" data-preset="EVE50">EVE 50Ah</button>
-          <button class="preset-btn" data-preset="custom">Benutzerdefiniert</button>
-        </div>
-        <label>Typ</label>
-        <select id="cellType">
-          <option value="round">Rundzelle (zylindrisch)</option>
-          <option value="prismatic">Prismatisch</option>
-        </select>
-
-        <div id="round_dims">
-          <div class="row2">
-            <div><label>Ø Durchmesser mm</label><input type="number" id="cell_diam" value="18" min="1" step="0.1" /></div>
-            <div><label>Höhe mm</label><input type="number" id="cell_h_round" value="65" min="1" step="0.1" /></div>
+          <div id="extra_t" style="display:none">
+            <div class="row2">
+              <div><label id="label_stem_w">Stab-Breite mm</label><input type="number" id="dim_stem_w" value="80" min="1" /></div>
+              <div><label id="label_bar_h">Stab-Länge mm</label><input type="number" id="dim_bar_h" value="240" min="1" /></div>
+            </div>
+          </div>
+          <div id="extra_trap" style="display:none">
+            <div><label id="label_top_mm">Obere Länge mm</label><input type="number" id="dim_top_mm" value="200" min="1" /></div>
           </div>
         </div>
-        <div id="prism_dims" style="display:none">
+
+        <div class="card">
+          <div class="card-title">02 Abstände</div>
           <div class="row2">
-            <div><label>Breite mm</label><input type="number" id="cell_w" value="148" min="1" step="0.1" /></div>
-            <div><label>Tiefe mm</label><input type="number" id="cell_d" value="27" min="1" step="0.1" /></div>
+            <div>
+              <label>Rand mm</label>
+              <input type="number" id="paramMargin" value="5" min="0" step="0.5" />
+            </div>
+            <div>
+              <label>Ebenen-Gap mm</label>
+              <input type="number" id="paramLayerGap" value="2" min="0" step="0.5" />
+            </div>
           </div>
-          <div><label>Höhe mm</label><input type="number" id="cell_h_prism" value="91" min="1" step="0.1" /></div>
+          <div class="row2">
+            <div>
+              <label>Zell-Gap Rund mm</label>
+              <input type="number" id="paramGapRound" value="5" min="0" step="0.5" />
+            </div>
+            <div>
+              <label>Zell-Gap Prism mm</label>
+              <input type="number" id="paramGapPrism" value="1" min="0" step="0.5" />
+            </div>
+          </div>
         </div>
 
-        <div id="grid_opts_round" style="margin-top:8px">
-          <label>Rastertyp</label>
-          <select id="gridType">
-            <option value="grid">Rechteckig (Grid)</option>
-            <option value="honeycomb">Honeycomb (versetzt)</option>
+        <button id="runBtn" type="button">OPTIMIERUNG STARTEN</button>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="zellen">
+        <div class="card">
+          <div class="card-title">03 Zelltyp</div>
+          <div class="cell-preset">
+            <button class="preset-btn" data-preset="18650" type="button">18650</button>
+            <button class="preset-btn" data-preset="21700" type="button">21700</button>
+            <button class="preset-btn" data-preset="BYD50" type="button">BYD 50Ah</button>
+            <button class="preset-btn" data-preset="EVE50" type="button">EVE 50Ah</button>
+            <button class="preset-btn" data-preset="custom" type="button">Benutzerdefiniert</button>
+          </div>
+          <label>Typ</label>
+          <select id="cellType">
+            <option value="round">Rundzelle (zylindrisch)</option>
+            <option value="prismatic">Prismatisch</option>
           </select>
-        </div>
-      </div>
 
-      <!-- ABSTÄNDE -->
-      <div class="card">
-        <div class="card-title">③ Abstände</div>
-        <div class="row2">
-          <div>
-            <label>Rand mm</label>
-            <input type="number" id="paramMargin" value="5" min="0" step="0.5" />
+          <div id="round_dims">
+            <div class="row2">
+              <div><label>Durchmesser mm</label><input type="number" id="cell_diam" value="18" min="1" step="0.1" /></div>
+              <div><label>Höhe mm</label><input type="number" id="cell_h_round" value="65" min="1" step="0.1" /></div>
+            </div>
           </div>
-          <div>
-            <label>Ebenen-Gap mm</label>
-            <input type="number" id="paramLayerGap" value="2" min="0" step="0.5" />
+          <div id="prism_dims" style="display:none">
+            <div class="row2">
+              <div><label>Breite mm</label><input type="number" id="cell_w" value="148" min="1" step="0.1" /></div>
+              <div><label>Tiefe mm</label><input type="number" id="cell_d" value="27" min="1" step="0.1" /></div>
+            </div>
+            <div><label>Höhe mm</label><input type="number" id="cell_h_prism" value="91" min="1" step="0.1" /></div>
           </div>
-        </div>
-        <div class="row2">
-          <div>
-            <label>Zell-Gap Rund mm</label>
-            <input type="number" id="paramGapRound" value="5" min="0" step="0.5" />
-          </div>
-          <div>
-            <label>Zell-Gap Prism mm</label>
-            <input type="number" id="paramGapPrism" value="1" min="0" step="0.5" />
+
+          <div id="grid_opts_round" style="margin-top:8px">
+            <label>Rastertyp</label>
+            <select id="gridType">
+              <option value="grid">Rechteckig (Grid)</option>
+              <option value="honeycomb">Honeycomb (versetzt)</option>
+            </select>
           </div>
         </div>
-      </div>
+      </section>
 
-      <button id="runBtn">▶ OPTIMIERUNG STARTEN</button>
+      <section class="tab-panel" data-tab-panel="ansicht">
+        <div class="card" id="offsetCard" style="display:none">
+          <div class="card-title">04 Grid-Versatz</div>
+          <label>Versatz X <span class="offset-val" id="gridOffXVal">0</span> mm</label>
+          <input type="range" id="gridOffX" min="0" max="50" step="0.5" value="0" />
+          <label>Versatz Y <span class="offset-val" id="gridOffYVal">0</span> mm</label>
+          <input type="range" id="gridOffY" min="0" max="50" step="0.5" value="0" />
+          <label>Versatz Z <span class="offset-val" id="gridOffZVal">0</span> mm</label>
+          <input type="range" id="gridOffZ" min="0" max="50" step="0.5" value="0" />
+        </div>
 
-      <!-- GRID OFFSET -->
-      <div class="card" id="offsetCard" style="display:none">
-        <div class="card-title">④ Grid-Versatz</div>
-        <label>Versatz X <span class="offset-val" id="gridOffXVal">0</span> mm</label>
-        <input type="range" id="gridOffX" min="0" max="50" step="0.5" value="0" />
-        <label>Versatz Y <span class="offset-val" id="gridOffYVal">0</span> mm</label>
-        <input type="range" id="gridOffY" min="0" max="50" step="0.5" value="0" />
-        <label>Versatz Z <span class="offset-val" id="gridOffZVal">0</span> mm</label>
-        <input type="range" id="gridOffZ" min="0" max="50" step="0.5" value="0" />
-      </div>
+        <div class="card" id="wrapCard" style="display:none">
+          <div class="card-title">05 Gehäuse / Folie</div>
+          <label class="check-row">
+            <input type="checkbox" id="wrapToggle" />
+            <span>Schrumpffolie anzeigen</span>
+          </label>
+          <div class="row2">
+            <div>
+              <label>Farbe</label>
+              <input type="color" id="wrapColor" value="#7fb3d5" />
+            </div>
+            <div>
+              <label>Dicke mm</label>
+              <input type="number" id="wrapThickness" value="2" min="0.1" step="0.1" />
+            </div>
+          </div>
+          <label>Transparenz <span class="offset-val" id="wrapOpacityVal">0.28</span></label>
+          <input type="range" id="wrapOpacity" min="0.05" max="0.8" step="0.01" value="0.28" />
+        </div>
+      </section>
 
-    </div><!-- /sidebar-inner -->
+      <section class="tab-panel" data-tab-panel="ergebnisse">
+        <div class="results" id="resultsPanel" style="display:none">
+          <div class="results-title">Ergebnisse</div>
+          <div class="result-best" id="bestCount">-</div>
+          <div class="result-sub" id="bestDesc">-</div>
+          <div class="result-dims" id="bestDims">Packmaße: -</div>
+          <div class="result-dims" id="bestRaster">Raster: -</div>
+          <div class="result-explain" id="resultExplain">Starte eine Optimierung, um die Pack-Auslegung zu erklaeren.</div>
+          <div class="result-list" id="resultList"></div>
+        </div>
+      </section>
 
-    <!-- RESULTS -->
-    <div class="results" id="resultsPanel" style="display:none">
-      <div class="results-title">Ergebnisse</div>
-      <div class="result-best" id="bestCount">—</div>
-      <div class="result-sub" id="bestDesc">—</div>
-      <div class="result-dims" id="bestDims">Packmasse: —</div>
-      <div class="result-dims" id="bestRaster">Raster: —</div>
-      <div class="result-explain" id="resultExplain">Starte eine Optimierung, um die Pack-Auslegung zu erklaeren.</div>
-      <div class="result-list" id="resultList"></div>
     </div>
-  </div><!-- /sidebar -->
+  </div>
 
-  <!-- ── 3D VIEWER ───────────────────────────────────────── -->
   <div class="viewer">
     <canvas id="c"></canvas>
 
     <div class="overlay" id="overlay" style="display:none">
-      <div class="ov-row"><span class="ov-label">Zellen gesamt</span><span class="ov-val" id="ov_total">—</span></div>
-      <div class="ov-row"><span class="ov-label">Im Raster</span><span class="ov-val" id="ov_grid">—</span></div>
-      <div class="ov-row"><span class="ov-label">Ebenen</span><span class="ov-val" id="ov_layers">—</span></div>
-      <div class="ov-row"><span class="ov-label">Anordnung</span><span class="ov-val" id="ov_orient">—</span></div>
+      <div class="ov-row"><span class="ov-label">Zellen gesamt</span><span class="ov-val" id="ov_total">-</span></div>
+      <div class="ov-row"><span class="ov-label">Im Raster</span><span class="ov-val" id="ov_grid">-</span></div>
+      <div class="ov-row"><span class="ov-label">Ebenen</span><span class="ov-val" id="ov_layers">-</span></div>
+      <div class="ov-row"><span class="ov-label">Anordnung</span><span class="ov-val" id="ov_orient">-</span></div>
     </div>
 
     <div class="vis-controls" id="visControls" style="display:none">
-      <button class="vis-btn" id="btnSolid">Solid</button>
-      <button class="vis-btn" id="btnWire">Wireframe</button>
-      <button class="vis-btn" id="btnSkeleton">Skelett</button>
-      <button class="vis-btn active" id="btnPack">Pack</button>
-      <button class="vis-btn" id="btnExplode">Explosion</button>
+      <button class="vis-btn active" id="btnSolid" type="button">Solid</button>
+      <button class="vis-btn" id="btnWire" type="button">Wireframe</button>
+      <button class="vis-btn" id="btnSkeleton" type="button">Skelett</button>
+      <button class="vis-btn" id="btnPack" type="button">Pack</button>
+      <button class="vis-btn" id="btnExplode" type="button">Explosion</button>
       <label class="explode-control" id="explodeControl" style="display:none">
         <span>Abstand</span>
         <input type="range" id="explodeAmount" min="0" max="140" value="70" />
@@ -182,12 +210,12 @@
     <div class="controls-hint">Drehen: LMB · Zoom: Scroll · Pan: RMB/2-Finger</div>
 
     <div class="progress" id="progress" style="display:none">
-      <div class="progress-text" id="prog_text">Berechnung läuft…</div>
-      <div class="progress-sub" id="prog_sub">Prüfe alle Kombinationen…</div>
+      <div class="progress-text" id="prog_text">Berechnung läuft...</div>
+      <div class="progress-sub" id="prog_sub">Prüfe alle Kombinationen...</div>
     </div>
-  </div><!-- /viewer -->
+  </div>
 
-</div><!-- /main -->
+</div>
 
 <script type="module" src="/src/main.ts"></script>
 </body>
